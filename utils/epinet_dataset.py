@@ -149,6 +149,7 @@ class EPI_Dataset():
             self.input_file = config['input_file']
         self.view_size = config['view_size'] # 5, 7, 9
         self.aug_shift = config['aug_shift']
+        self.thres_patch = config['thres_patch']
         self.dset_input = config['dset_input']
         self.dset_label = config['dset_label']
         self.image_height = 512
@@ -171,7 +172,7 @@ class EPI_Dataset():
             tmp  = np.float32(imageio.imread(image_path+'/input_Cam0%.2d.png' % index))
             data[:,:,i]=(RGB[0]*tmp[:,:,0] + RGB[1]*tmp[:,:,1] + RGB[2]*tmp[:,:,2])
             i+=1
-        data.astype(np.uint8)
+        data = data.astype(np.uint8)
         return data
     # def patch_extraction(self):
     #     imgs_90d, imgs_0d, imgs_45d, imgs_M45d = make_multiinput(image_path,
@@ -239,6 +240,11 @@ class EPI_Dataset():
             dis_maps.append(dis)
         return inputs, dis_maps
     def good_patch(self,data):
+        cen_idx  = int(self.view_size//2)
+        apatch = np.squeeze(data[0,0,:,:,cen_idx])
+        val = np.mean(np.abs(apatch - np.mean(apatch)))
+        if(val<self.thres_patch):
+            return False
         return True
     def prepare_patch(self,inputs,dis_maps):
         # calculate number of inputs
@@ -271,6 +277,7 @@ class EPI_Dataset():
                 patch_maps.append(dis_maps[:,
                                            ystart:ystart+self.patch_size,
                                              xstart:xstart+self.patch_size])
+        print(" ... ... selected %d of %d patches"%(len(patch_maps),(n_x*n_y)))
         return np.array(patch_inputs), np.array(patch_maps)
     def append_data(self, data, label):
         ioutil.append_data(self.output_file,self.dset_input,data)
@@ -293,8 +300,8 @@ class EPI_Dataset():
             # convert to numpy for convenience.
             np_inputs = np.zeros([len(inputs),len(Input_Type),
                                   self.image_height,self.image_width,
-                                  self.view_size])
-            np_inputs.astype(np.uint8)
+                                  self.view_size],
+                                 dtype=np.uint8)
             np_dis_maps = np.array(dis_maps)
             for i,input in enumerate(inputs):
                 for itype in Input_Type:
