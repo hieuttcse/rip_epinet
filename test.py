@@ -13,8 +13,8 @@ def main():
     config['disparity_dir'] = '/home/trantu/lightfield/local/hci/full/depths/additional'
     config['patch_size'] = 23
     config['stride'] = 6
-    config['output_file'] = '/home/trantu/maps/pool1/data/epinet/train_5v_23p_6s.h5'
-    config['view_size'] = 5
+    config['output_file'] = '/home/trantu/maps/pool1/data/epinet/train_7v_23p_6s.h5'
+    config['view_size'] = 7
 
     config['aug_shift'] = True
     config['dset_input'] = 'inputs'

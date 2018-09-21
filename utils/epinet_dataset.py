@@ -169,8 +169,9 @@ class EPI_Dataset():
         i=0
         for index in indexes:
             tmp  = np.float32(imageio.imread(image_path+'/input_Cam0%.2d.png' % index))
-            data[:,:,i]=(RGB[0]*tmp[:,:,0] + RGB[1]*tmp[:,:,1] + RGB[2]*tmp[:,:,2])/255
+            data[:,:,i]=(RGB[0]*tmp[:,:,0] + RGB[1]*tmp[:,:,1] + RGB[2]*tmp[:,:,2])
             i+=1
+        data.astype(np.uint8)
         return data
     # def patch_extraction(self):
     #     imgs_90d, imgs_0d, imgs_45d, imgs_M45d = make_multiinput(image_path,
@@ -277,7 +278,10 @@ class EPI_Dataset():
 
     def prepare_input(self):
         # check available scenes
-        scenes = os.listdir(self.data_dir)
+        all_files = os.listdir(self.data_dir)
+        scenes = [ name for name in all_files if
+                   os.path.isdir(os.path.join(self.data_dir,name))]
+
         print("Found these scenes: ",scenes)
         for scene in scenes:
             print(" Processing the scene %s: "%(scene))
@@ -290,6 +294,7 @@ class EPI_Dataset():
             np_inputs = np.zeros([len(inputs),len(Input_Type),
                                   self.image_height,self.image_width,
                                   self.view_size])
+            np_inputs.astype(np.uint8)
             np_dis_maps = np.array(dis_maps)
             for i,input in enumerate(inputs):
                 for itype in Input_Type:
@@ -310,7 +315,6 @@ class EPI_Dataset():
                 self.append_data(patch_inputs,patch_maps)
                 del patch_inputs
                 del patch_maps
-            n_patches = patch_inputs.shape[0]
             # f,(ax1,ax2) = plt.subplots(1,2)
             # plt.show()
             # for _ in range(10):
