@@ -6,14 +6,15 @@ import os
 
 def main():
     config = {}
-    config['data_dir'] ='/home/trantu/lightfield/datasets/hci/full/additional'
-    config['disparity_dir'] = '/home/trantu/lightfield/datasets/hci/full/depths/additional'
+    #config['data_dir'] ='/home/trantu/lightfield/datasets/hci/full/additional'
+    #config['disparity_dir'] = '/home/trantu/lightfield/datasets/hci/full/depths/additional'
 
-    # config['data_dir'] ='/home/trantu/lightfield/local/hci/full/additional'
-    # config['disparity_dir'] = '/home/trantu/lightfield/local/hci/full/depths/additional'
-    config['patch_size'] = 23
+    config['data_dir'] ='/home/trantu/lightfield/local/hci/full/additional'
+    config['disparity_dir'] = '/home/trantu/lightfield/local/hci/full/depths/additional'
+    config['patch_size'] = 61
     config['stride'] = 6
-    config['output_file'] = '/home/trantu/maps/pool1/data/epinet/train_7v_23p_6s.h5'
+    #config['output_file'] = '/home/trantu/maps/pool1/data/epinet/train_7v_23p_6s.h5'
+    config['output_file'] = '/home/trantu/tmp/train_9v_23p_6s.h5'
     # config['output_file'] = '/home/trantu/tmp/t9.h5'
     config['view_size'] = 9
 

@@ -46,6 +46,39 @@ def layer3_last(input_dims, filt_num):
     seq.add(Conv2D(1,(2,2),padding='valid', name='S3_last'))
     return seq
 
+def define_epinet_v1(sz_input, view_size, conv_depth, filt_num, learning_rate):
+    input_stack_90d = Input(shape=(sz_input[0],sz_input[1],view_size),
+                            name = 'input_stack_90d')
+    input_stack_0d = Input(shape=(sz_input[0],sz_input[1],view_size),
+                            name = 'input_stack_0d')
+    input_stack_45d = Input(shape=(sz_input[0],sz_input[1],view_size),
+                            name = 'input_stack_45d')
+    input_stack_M45d = Input(shape=(sz_input[0],sz_input[1],view_size),
+                            name = 'input_stack_M45d')
+
+    mid_90d= layer1_multistream((sz_input[0],sz_input[1],view_size),
+                                int(filt_num))(input_stack_90d)
+    mid_0d= layer1_multistream((sz_input[0],sz_input[1],view_size),
+                                int(filt_num))(input_stack_0d)
+    mid_45d= layer1_multistream((sz_input[0],sz_input[1],view_size),
+                                int(filt_num))(input_stack_45d)
+    mid_M45d= layer1_multistream((sz_input[0],sz_input[1],view_size),
+                                int(filt_num))(input_stack_M45d)
+
+    # Merge layers
+    mid_merged = concatenate([mid_90d, mid_0d, mid_45d, mid_M45d],name='mid_merged')
+    mid_merged_=layer2_merged((sz_input[0]-6,sz_input[1]-6,int(4*filt_num)),
+                              int(4*filt_num),conv_depth)(mid_merged)
+    ''' Last Conv layer : Conv - Relu - Conv '''
+    output=layer3_last((sz_input[0]-20,sz_input[1]-20,int(4*filt_num)),
+                       int(4*filt_num))(mid_merged_)
+
+    model_512 = Model(inputs=[input_stack_90d,input_stack_0d,
+                              input_stack_45d,input_stack_M45d],
+                      outputs=[output])
+    return model_512
+
+
 def define_epinet(sz_input, view_n, conv_depth, filt_num, learning_rate):
     input_stack_90d = Input(shape=(sz_input[0],sz_input[1],len(view_n)),
                             name = 'input_stack_90d')

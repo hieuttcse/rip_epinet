@@ -9,11 +9,14 @@ import imageio
 import numpy as np
 import os
 from enum import Enum
+from keras.utils import Sequence
 import pytools.file_io as file_io
 import lfutils
 import random
 from matplotlib import pyplot as plt
 import time
+import h5py
+import random
 
 import io_utils as ioutil
 
@@ -127,6 +130,72 @@ def rotation_augmentation(seq_90d_batch, seq_0d_batch,
             label_batch[batch_i,:,:]=np.copy(np.rot90(label_batch[batch_i,:,:],3,(0,1)))
 
     return seq_90d_batch, seq_0d_batch, seq_45d_batch, seq_M45d_batch, label_batch
+
+
+class DatasetType(Enum):
+    TRAIN = 0
+    DEV = 1
+    TEST = 2
+
+class Dataset_Generator(Sequence):
+    def __init__(self,batch_list, config):
+        self.batch_size = config['batch_size']
+        h5file = config['input_file']
+        batch_size = config['batch_size']
+        dset_input = config['dset_input']
+        dset_label = config['dset_label']
+        self.f = h5py.File(h5file,'r')
+        self.batch_list = batch_list
+        self.inputs = self.f[dset_input]
+        self.labels = self.f[dset_label]
+
+    def __del__(self):
+        self.f.close()
+
+    def __len__(self):
+        return len(self.batch_list)
+
+    def __getitem__(self,index):
+        batch_id = self.batch_list[index]
+        istart = batch_id * self.batch_size
+        iend = istart + self.batch_size
+        images = self.inputs[istart:iend,...]
+        labels = self.labels[istart:iend,...]
+        # trim labels
+        labels = labels[:,11:-11,11:-11]
+        V0 = np.squeeze(images[:,0,...])
+        V90 = np.squeeze(images[:,1,...])
+        V45 = np.squeeze(images[:,2,...])
+        V45M = np.squeeze(images[:,3,...])
+        labels = np.expand_dims(labels,axis=-1)
+        return [V0,V90,V45,V45M], labels
+
+    @classmethod
+    def splits(cls,config):
+        h5file = config['input_file']
+        batch_size = config['batch_size']
+        dset_input = config['dset_input']
+        dset_label = config['dset_label']
+        with h5py.File(h5file,'r') as f:
+            inputs = f[dset_input]
+            labels = f[dset_label]
+            n_images = labels.shape[0]
+
+        n_batches = int(n_images // batch_size)
+        size_test = int(np.floor(n_batches *0.1))
+        size_dev = int(np.floor(n_batches * 0.1))
+        size_train = n_batches - size_test - size_dev
+
+        batch_list = range(0,n_batches)
+        random.shuffle(batch_list)
+        train_list = batch_list[0:size_train]
+        dev_list = batch_list[size_train:size_train+size_dev]
+        test_list = batch_list[-size_test:]
+
+        datasets = (cls(train_list,config),
+                    cls(dev_list,config),
+                    cls(test_list,config))
+        return datasets
 
 class Input_Type(Enum):
     D90 = 0
