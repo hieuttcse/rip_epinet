@@ -67,6 +67,12 @@ def make_multiinput(image_path, image_h, image_w, view_n):
         val_0d=make_epiinput_lytro(image_path,seq0d,image_h,image_w,view_n,RGB)
         val_45d=make_epiinput_lytro(image_path,seq45d,image_h,image_w,view_n,RGB)
         val_M45d=make_epiinput_lytro(image_path,seqM45d,image_h,image_w,view_n,RGB)
+    else:
+        val_90d=make_epiinput(image_path,seq90d,image_h,image_w,view_n,RGB)
+        val_0d=make_epiinput(image_path,seq0d,image_h,image_w,view_n,RGB)
+        val_45d=make_epiinput(image_path,seq45d,image_h,image_w,view_n,RGB)
+        val_M45d=make_epiinput(image_path,seqM45d,image_h,image_w,view_n,RGB)
+
 
     return val_90d , val_0d, val_45d, val_M45d
 
@@ -159,7 +165,7 @@ class Dataset_Generator(Sequence):
         batch_id = self.batch_list[index]
         istart = batch_id * self.batch_size
         iend = istart + self.batch_size
-        images = self.inputs[istart:iend,...]
+        images = np.asarray(self.inputs[istart:iend,...],dtype=np.float32)/255.0
         labels = self.labels[istart:iend,...]
         # trim labels
         labels = labels[:,11:-11,11:-11]
@@ -202,6 +208,95 @@ class Input_Type(Enum):
     D0 = 1
     D45 = 2
     D45M = 3
+class EPI_Data_Loader():
+    def __init__(self,config):
+        self.image_folder = config['image_folder']
+        self.view_size = config['view_size']
+        self.image_height = config['image_height']
+        self.image_width = config['image_width']
+        if 'disparity_folder' in config:
+            self.disparity_folder = config['disparity_folder']
+        else:
+            self.disaprity_folder = None
+
+    def get_inputs(self):
+        type_list = [Input_Type.D0, Input_Type.D90,
+                     Input_Type.D45, Input_Type.D45M]
+        cen = (4,4)
+        adata = {}
+        for atype in type_list:
+            indexes = self.get_img_numbers(atype, cen, self.view_size)
+            print(atype.name," : ",indexes)
+            images = self.get_epi_input(self.image_folder,indexes,
+                                            self.image_height,self.image_width,
+                                            self.view_size)
+            images = np.expand_dims(images,axis = 0)
+            adata.update({atype: images})
+        in90 = np.asarray(adata[Input_Type.D90],dtype=np.float32)/255.0
+        # in90 = in90[...,::-1]
+        in0  = np.asarray(adata[Input_Type.D0],dtype=np.float32)/255.0
+        in45 =  np.asarray(adata[Input_Type.D45],dtype=np.float32)/255.0
+        # in45 = in45[...,::-1]
+        in45M =  np.asarray(adata[Input_Type.D45M],dtype=np.float32)/255.0
+
+        # return (in90,in0,in45,in45M)
+        return (in0,in90,in45,in45M)
+
+    def get_disparity(self):
+        cen = (4,4)
+        if self.disparity_folder is None:
+            return np.zeros((self.image_height,self.image_width))
+
+        position = cen[0]*9 + cen[1]
+        fpath = os.path.join(self.disparity_folder,
+                             'gt_disp_lowres_Cam0%.2d.pfm'%position)
+        dis = -1.0* np.asarray(file_io.read_pfm(fpath),dtype=np.float32)
+        return dis
+
+    @classmethod
+    def get_epi_input(cls, image_path,indexes, image_height, image_width, view_size):
+        RGB = [0.299, 0.587, 0.114] # RGB to gray
+        data = np.zeros((image_height,image_width,view_size),dtype=np.float32)
+        i=0
+        for index in indexes:
+            tmp  = np.float32(imageio.imread(image_path+'/input_Cam0%.2d.png' % index))
+            data[:,:,i]=(RGB[0]*tmp[:,:,0] + RGB[1]*tmp[:,:,1] + RGB[2]*tmp[:,:,2])
+            i+=1
+        data = data.astype(np.uint8)
+        return data
+
+    @classmethod
+    def get_img_indexes(cls,input_type, center, view_size):
+        if not isinstance(center, (list,tuple)):
+            c_x = center%9
+            c_y = center//9
+        else:
+            c_y = center[0]
+            c_x = center[1]
+        indexes = []
+        half=view_size//2
+        x_arr = range(c_x-half, c_x + half+1)
+        y_arr = range(c_y-half, c_y + half+1)
+
+        if input_type == Input_Type.D90:
+            indexes = [(i_y,c_x) for i_y in y_arr]
+        elif input_type == Input_Type.D0:
+            indexes = [(c_y,i_x) for i_x in x_arr]
+        elif input_type == Input_Type.D45:
+            indexes = [(y_arr[i],x_arr[::-1][i]) for i in range(0,view_size)]
+        elif input_type == Input_Type.D45M:
+            indexes = [(y_arr[i],x_arr[i]) for i in range(0,view_size)]
+        return indexes
+
+    @classmethod
+    def get_img_numbers(cls,input_type,center,view_size):
+        indexes = cls.get_img_indexes(input_type,center,view_size)
+        numbers = [ idx[0]*9 + idx[1] for idx in indexes]
+        return numbers
+
+
+
+
 
 class EPI_Dataset():
     def __init__(self,config):
