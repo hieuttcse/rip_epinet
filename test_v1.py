@@ -50,7 +50,7 @@ def eval(config):
     # view_n = [1,2,3,4,5,6,7,8,9]
     # in90, in0, in45, in45m = dataset.make_multiinput(config['image_folder'],512,512,view_n)
     loader = Loader(config)
-    in90, in0, in45, in45m = loader.get_inputs()
+    in0, in90, in45, in45m = loader.get_inputs()
     dis = loader.get_disparity()
     print("size of dis, ", dis.shape)
     # predict
@@ -58,6 +58,40 @@ def eval(config):
     pre_dis = np.squeeze(pre_dis)
     print('size of predicted ',pre_dis.shape)
     gt_dis =dis[11:-11,11:-11]
+
+    mse =np.mean((pre_dis - gt_dis)**2)
+    print("mse: ", mse)
+
+    plt.subplot(1,2,1)
+    plt.imshow(gt_dis)
+    plt.subplot(1,2,2)
+    plt.imshow(pre_dis)
+    plt.show()
+    raw_input()
+
+def eval_old(config):
+
+    epi_model = MOD_EPINET(config)
+    epi_model.model = define_epinet_v1((512,512),5,
+                                       config['conv_depth'],
+                                       config['filt_num'],
+                                       0.1)
+    epi_model.summary()
+    epi_model.eval()
+    epi_model.load_weights(config['input_weights'])
+    print(" Finish loading weights!!!!")
+    # load images
+    view_n = [1,2,3,4,5]
+    in90, in0, in45, in45m = dataset.make_multiinput(config['image_folder'],512,512,view_n)
+    loader = Loader(config)
+    # in90, in0, in45, in45m = loader.get_inputs()
+    dis = loader.get_disparity()
+    print("size of dis, ", dis.shape)
+    # predict
+    pre_dis = epi_model.predict([in90, in0, in45, in45m])
+    pre_dis = np.squeeze(pre_dis)
+    print('size of predicted ',pre_dis.shape)
+    gt_dis =-1.0*dis[11:-11,11:-11]
 
     mse =np.mean((pre_dis - gt_dis)**2)
     print("mse: ", mse)
@@ -83,7 +117,7 @@ def main():
     config['patch_size'] = 512
     config['image_height'] = 512
     config['image_width'] = 512
-    config['input_weights'] = './logs/view_5_v2/180928_144015/improvement-17-0.17.hdf5'
+    config['input_weights'] = './logs/view_5_v2/181001_140233/improvement-118-0.22.hdf5'
     # config['input_weights'] = '../epinet/epinet_checkpoints/iter12640_5x5mse1.526_bp5.96.hdf5'
 
     # config['model_file'] = './logs/view_5_v2/180928_144015/model.json'
@@ -100,10 +134,11 @@ def main():
 
     # GPU setting ( gtx 1080ti - gpu0 )
     os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"]="5"
+    os.environ["CUDA_VISIBLE_DEVICES"]="1"
     set_seed(config)
     if config["mode"] == "eval":
         eval(config)
+        # eval_old(config)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 #Trung-Hieu Tran @ IPVS
-#180918
+# 181002
 # Reimplement of EPINET
-
 # from keras.utils import Sequence
 
 from __future__ import print_function
@@ -20,130 +19,8 @@ import random
 
 import io_utils as ioutil
 
-def make_epiinput(image_path,seq1,image_h,image_w,view_n,RGB):
-    traindata_tmp=np.zeros((1,image_h,image_w,len(view_n)),dtype=np.float32)
-    i=0
-    # if(len(image_path)==1):
-    #     image_path=image_path[0]
-    for seq in seq1:
-        tmp  = np.float32(imageio.imread(image_path+'/input_Cam0%.2d.png' % seq))
-        traindata_tmp[0,:,:,i]=(RGB[0]*tmp[:,:,0] + RGB[1]*tmp[:,:,1] + RGB[2]*tmp[:,:,2])/255
-        i+=1
-    return traindata_tmp
-
-
-def make_epiinput_lytro(image_path,seq1,image_h,image_w,view_n,RGB):
-    traindata_tmp=np.zeros((1,image_h,image_w,len(view_n)),dtype=np.float32)
-    i=0
-    if(len(image_path)==1):
-        image_path=image_path[0]
-    for seq in seq1:
-        tmp  = np.float32(imageio.imread(image_path+'/%s_%02d_%02d.png' % (image_path.split("/")[-1],1+seq//9, 1+seq-(seq//9)*9)) )
-        traindata_tmp[0,:,:,i]=(RGB[0]*tmp[:,:,0] + RGB[1]*tmp[:,:,1] + RGB[2]*tmp[:,:,2])/255
-        i+=1
-    return traindata_tmp
-
-def make_multiinput(image_path, image_h, image_w, view_n):
-    RGB = [0.299, 0.587, 0.114] # RGB to gray
-
-    idx_start= int(0.5*(9-len(view_n)))
-
-    seq90d=list(range(4,81,9)[::-1][idx_start:9-idx_start:])
-    # 90degree:  [76, 67, 58, 49, 40, 31, 22, 13, 4 ]
-    seq0d=list(range(36,45,1)[idx_start:9-idx_start:])
-    # 0degree:  [36, 37, 38, 39, 40, 41, 42, 43, 44]
-    seq45d=list(range(8,80,8)[::-1][idx_start:9-idx_start:])
-    # 45degree:  [72, 64, 56, 48, 40, 32, 24, 16, 8 ]
-    seqM45d=list(range(0,81,10)[idx_start:9-idx_start:])
-    # -45degree:  [0, 10, 20, 30, 40, 50, 60, 70, 80]
-
-    if(image_path[:8]=='training' and os.listdir(image_path)[0][:9]=='input_Cam'):
-        val_90d=make_epiinput(image_path,seq90d,image_h,image_w,view_n,RGB)
-        val_0d=make_epiinput(image_path,seq0d,image_h,image_w,view_n,RGB)
-        val_45d=make_epiinput(image_path,seq45d,image_h,image_w,view_n,RGB)
-        val_M45d=make_epiinput(image_path,seqM45d,image_h,image_w,view_n,RGB)
-    elif(image_path[:5]=='lytro'):
-        val_90d=make_epiinput_lytro(image_path,seq90d,image_h,image_w,view_n,RGB)
-        val_0d=make_epiinput_lytro(image_path,seq0d,image_h,image_w,view_n,RGB)
-        val_45d=make_epiinput_lytro(image_path,seq45d,image_h,image_w,view_n,RGB)
-        val_M45d=make_epiinput_lytro(image_path,seqM45d,image_h,image_w,view_n,RGB)
-    else:
-        val_90d=make_epiinput(image_path,seq90d,image_h,image_w,view_n,RGB)
-        val_0d=make_epiinput(image_path,seq0d,image_h,image_w,view_n,RGB)
-        val_45d=make_epiinput(image_path,seq45d,image_h,image_w,view_n,RGB)
-        val_M45d=make_epiinput(image_path,seqM45d,image_h,image_w,view_n,RGB)
-
-
-    return val_90d , val_0d, val_45d, val_M45d
-
-def rotation_augmentation(seq_90d_batch, seq_0d_batch,
-                          seq_45d_batch,seq_M45d_batch,
-                          label_batch, batch_size):
-    for batch_i in range(batch_size):
-        rot90_rand = np.random.randint(0,4)
-        transp_rand = np.random.randint(0,2)
-        if transp_rand==1:
-            seq_90d_batch_tmp6=np.copy(np.transpose(
-                np.squeeze(seq_90d_batch[batch_i,:,:,:]),(1, 0, 2)))
-            seq_0d_batch_tmp6=np.copy(np.transpose(
-                np.squeeze(seq_0d_batch[batch_i,:,:,:]),(1, 0, 2)))
-            seq_45d_batch_tmp6=np.copy(np.transpose(
-                np.squeeze(seq_45d_batch[batch_i,:,:,:]),(1, 0, 2)) )
-            seq_M45d_batch_tmp6=np.copy(np.transpose(
-                np.squeeze(seq_M45d_batch[batch_i,:,:,:]),(1, 0, 2)) )
-
-            seq_0d_batch[batch_i,:,:,:] = seq_90d_batch_tmp6[:,:,::-1]
-            seq_90d_batch[batch_i,:,:,:] = seq_0d_batch_tmp6[:,:,::-1]
-            seq_45d_batch[batch_i,:,:,:] = seq_45d_batch_tmp6[:,:,::-1]
-            seq_M45d_batch[batch_i,:,:,:]= seq_M45d_batch_tmp6[:,:,:]
-            label_batch[batch_i,:,:]=np.copy(np.transpose(
-                label_batch[batch_i,:,:],(1, 0)))
-
-        if rot90_rand==1: # 90 degree
-            seq_90d_batch_tmp3=np.copy(np.rot90(seq_90d_batch[batch_i,:,:,:],1,(0,1)))
-            seq_0d_batch_tmp3=np.copy(np.rot90(seq_0d_batch[batch_i,:,:,:],1,(0,1)))
-            seq_45d_batch_tmp3=np.copy(np.rot90(seq_45d_batch[batch_i,:,:,:],1,(0,1)))
-            seq_M45d_batch_tmp3=np.copy(np.rot90(seq_M45d_batch[batch_i,:,:,:],1,(0,1)))
-
-            seq_90d_batch[batch_i,:,:,:]=seq_0d_batch_tmp3
-            seq_45d_batch[batch_i,:,:,:]=seq_M45d_batch_tmp3
-            seq_0d_batch[batch_i,:,:,:]=seq_90d_batch_tmp3[:,:,::-1]
-            seq_M45d_batch[batch_i,:,:,:]=seq_45d_batch_tmp3[:,:,::-1]
-            label_batch[batch_i,:,:]=np.copy(np.rot90(label_batch[batch_i,:,:],1,(0,1)))
-
-        if rot90_rand==2: # 180 degree
-
-            seq_90d_batch_tmp4=np.copy(np.rot90(seq_90d_batch[batch_i,:,:,:],2,(0,1)))
-            seq_0d_batch_tmp4=np.copy(np.rot90(seq_0d_batch[batch_i,:,:,:],2,(0,1)))
-            seq_45d_batch_tmp4=np.copy(np.rot90(seq_45d_batch[batch_i,:,:,:],2,(0,1)))
-            seq_M45d_batch_tmp4=np.copy(np.rot90(seq_M45d_batch[batch_i,:,:,:],2,(0,1)))
-
-            seq_90d_batch[batch_i,:,:,:]=seq_90d_batch_tmp4[:,:,::-1]
-            seq_0d_batch[batch_i,:,:,:]=seq_0d_batch_tmp4[:,:,::-1]
-            seq_45d_batch[batch_i,:,:,:]=seq_45d_batch_tmp4[:,:,::-1]
-            seq_M45d_batch[batch_i,:,:,:]=seq_M45d_batch_tmp4[:,:,::-1]
-            label_batch[batch_i,:,:]=np.copy(np.rot90(label_batch[batch_i,:,:],2,(0,1)))
-
-        if rot90_rand==3: # 270 degree
-            seq_90d_batch_tmp5=np.copy(np.rot90(seq_90d_batch[batch_i,:,:,:],3,(0,1)))
-            seq_0d_batch_tmp5=np.copy(np.rot90(seq_0d_batch[batch_i,:,:,:],3,(0,1)))
-            seq_45d_batch_tmp5=np.copy(np.rot90(seq_45d_batch[batch_i,:,:,:],3,(0,1)))
-            seq_M45d_batch_tmp5=np.copy(np.rot90(seq_M45d_batch[batch_i,:,:,:],3,(0,1)))
-            seq_90d_batch[batch_i,:,:,:]=seq_0d_batch_tmp5[:,:,::-1]
-            seq_0d_batch[batch_i,:,:,:]=seq_90d_batch_tmp5
-            seq_45d_batch[batch_i,:,:,:]=seq_M45d_batch_tmp5[:,:,::-1]
-            seq_M45d_batch[batch_i,:,:,:]=seq_45d_batch_tmp5
-            label_batch[batch_i,:,:]=np.copy(np.rot90(label_batch[batch_i,:,:],3,(0,1)))
-
-    return seq_90d_batch, seq_0d_batch, seq_45d_batch, seq_M45d_batch, label_batch
-
-
-class DatasetType(Enum):
-    TRAIN = 0
-    DEV = 1
-    TEST = 2
-
-class Dataset_Generator(Sequence):
+# Load training data from H5 file and feed it to the training model
+class Train_Dataset_Loader(Sequence):
     def __init__(self,batch_list, config):
         self.batch_size = config['batch_size']
         h5file = config['input_file']
@@ -209,7 +86,8 @@ class Input_Type(Enum):
     D45 = 2
     D45M = 3
 
-class EPI_Data_Loader():
+# reading EPI input data for evaluation, testing purpose
+class EPI_Data_Reader():
     def __init__(self,config):
         self.image_folder = config['image_folder']
         self.view_size = config['view_size']
@@ -295,7 +173,9 @@ class EPI_Data_Loader():
         numbers = [ idx[0]*9 + idx[1] for idx in indexes]
         return numbers
 
-class EPI_Dataset():
+
+# Generating data for training
+class Train_Dataset_Generator():
     def __init__(self,config):
         self.data_dir = config['data_dir']
         self.disparity_dir = config['disparity_dir']
@@ -310,6 +190,9 @@ class EPI_Dataset():
             self.input_file = config['input_file']
         self.view_size = config['view_size'] # 5, 7, 9
         self.aug_shift = config['aug_shift']
+        self.aug_scale = config['aug_scale']
+        self.aug_scale_factors = config['aug_scale_factors']
+        self.aug_rotate = config['aug_rotate']
         self.thres_patch = config['thres_patch']
         self.dset_input = config['dset_input']
         self.dset_label = config['dset_label']
@@ -335,11 +218,7 @@ class EPI_Dataset():
             i+=1
         data = data.astype(np.uint8)
         return data
-    # def patch_extraction(self):
-    #     imgs_90d, imgs_0d, imgs_45d, imgs_M45d = make_multiinput(image_path,
-    #                                                              512,
-    #                                                              512
-    #                                                              )
+
     @classmethod
     def get_img_indexes(cls,input_type, center, view_size):
         if not isinstance(center, (list,tuple)):
@@ -369,8 +248,10 @@ class EPI_Dataset():
         numbers = [ idx[0]*9 + idx[1] for idx in indexes]
         return numbers
 
+    # Reading input images, gt disparity and applying data augmentation techniques.
     def read_pair_single(self, image_path, disparity_path):
         center = (4,4) # (y, x)
+        # if applying shift augmentation, shifting center and reading coresponding images.
         if self.aug_shift:
             shift_max = (9 - self.view_size)//2
             shift_range = range(-shift_max,shift_max+1)
@@ -380,26 +261,30 @@ class EPI_Dataset():
             center_list = [(center[0]+yy[i],center[1]+xx[i]) for i in range(len(xx))]
         else:
             center_list = [center]
-        inputs = []
-        dis_maps = []
 
         type_list = [Input_Type.D0, Input_Type.D90,
                      Input_Type.D45, Input_Type.D45M]
-        for cen in center_list:
+        np_inputs = np.zeros([len(center_list),len(type_list),
+                                self.image_height,self.image_width,
+                                self.view_size],
+                                dtype=np.uint8)
+        np_maps = np.zeros([len(center_list),
+                            self.image_height,self.image_width],
+                           dtype=np.float32)
+        for i,cen in enumerate(center_list):
             # reading input images
-            adata ={}
             for atype in type_list:
                 indexes = self.get_img_numbers(atype, cen,self.view_size)
                 images = self.get_epi_input(image_path,indexes,
                                             self.image_height,self.image_width,
                                             self.view_size)
-                adata.update({atype: images})
-            inputs.append(adata)
+                np_inputs[i,atype.value,...] = images[...]
             # reading disparity map
             # disparity map was calculated in a reverse order.
             dis = -1.0*self.get_disparity(disparity_path,cen)
-            dis_maps.append(dis)
-        return inputs, dis_maps
+            np_maps[i,...] = dis[...]
+
+        return np_inputs, np_maps
     def good_patch(self,data):
         cen_idx  = int(self.view_size//2)
         apatch = np.squeeze(data[0,0,:,:,cen_idx])
@@ -444,6 +329,58 @@ class EPI_Dataset():
         ioutil.append_data(self.output_file,self.dset_input,data)
         ioutil.append_data(self.output_file,self.dset_label,label)
 
+    def prepare_input_with_augmentation(self,images,maps,scale=1.0,rotate=0):
+        print("... Shape ", images.shape)
+        # rotation:
+        seq_0 = images[Image_]
+
+        # for iidx in range(len(inputs)):
+        #     ainput = inputs[iidx]
+        #     adis = dis_maps[iidx]
+        #     factors = [1.0]
+        #     if self.aug_scale:
+        #         factors = self.scale_factors
+        #     for factor in factors:
+        #         arr_input = [ainput]
+        #         arr_dis = [adis]
+        #         # Scaling augmentation
+        #         if not factor == 1.0:
+        #             newInput, newDis = self.scaling_augmentation(ainput,adis,scale_factor)
+        #             arr_input.append(newInput)
+        #             arr_dis.append(newDis)
+        #         if self.aug_rotate:
+        #             newInputs, newDiss = self.rotating_augementation(ainput,adis)
+        #             for i in range(len(newDiss)):
+        #                 arr_input.append(newInputs[i])
+        #                 arr_dis.append(newDiss[i])
+        #         #TODO more augmentation strategy
+        #         # convert to numpy for convenience.
+        #         np_inputs = np.zeros([len(arr_input),len(Input_Type),
+        #                                 self.image_height,self.image_width,
+        #                                 self.view_size],
+        #                                 dtype=np.uint8)
+        #         np_dis_maps = np.array(arr_dis)
+        #         for i in range(len(arr_input)):
+        #             for itype in Input_Type:
+        #                 np_inputs[i,itype.value,...] = arr_input[i][itype]
+        #         # Cut into image patch
+        #         for idx in range(0,np_inputs.shape[0]):
+        #             # no_patch x no_shifted_view x input_type x patch_size x patch_size x view_size
+        #             patch_inputs, patch_maps = self.prepare_patch(np.expand_dims(np_inputs[idx,...],axis=0),
+        #                                                             np.expand_dims(np_dis_maps[idx,...],axis=0))
+        #             ish = patch_inputs.shape
+        #             patch_inputs.shape = (ish[0]*ish[1],ish[2],ish[3],ish[4],ish[5])
+        #             msh = patch_maps.shape
+        #             patch_maps.shape = (msh[0]*msh[1],msh[2],msh[3])
+        #             # write to file
+        #             n_batch = ish[0]
+        #             print(" ... Write %d patches %d/%d"%(n_batch,idx,np_inputs.shape[0]))
+        #                     #end="\r"0
+        #             self.append_data(patch_inputs,patch_maps)
+        #             del patch_inputs
+        #             del patch_maps
+
+
     def prepare_input(self):
         # check available scenes
         all_files = os.listdir(self.data_dir)
@@ -455,34 +392,23 @@ class EPI_Dataset():
             print(" Processing the scene %s: "%(scene))
             image_path = os.path.join(self.data_dir,scene)
             disparity_path = os.path.join(self.disparity_dir,scene)
-            inputs, dis_maps = self.read_pair_single(image_path,disparity_path)
-            print(" ... Image Len: ", len(inputs), len(dis_maps))
-            #TODO more augmentation strategy
-            # convert to numpy for convenience.
-            np_inputs = np.zeros([len(inputs),len(Input_Type),
-                                  self.image_height,self.image_width,
-                                  self.view_size],
-                                 dtype=np.uint8)
-            np_dis_maps = np.array(dis_maps)
-            for i,input in enumerate(inputs):
-                for itype in Input_Type:
-                    np_inputs[i,itype.value,...] = inputs[i][itype]
-            # Cut into image patch
-            for idx in range(0,np_inputs.shape[0]):
-                # no_patch x no_shifted_view x input_type x patch_size x patch_size x view_size
-                patch_inputs, patch_maps = self.prepare_patch(np.expand_dims(np_inputs[idx,...],axis=0),
-                                                              np.expand_dims(np_dis_maps[idx,...],axis=0))
-                ish = patch_inputs.shape
-                patch_inputs.shape = (ish[0]*ish[1],ish[2],ish[3],ish[4],ish[5])
-                msh = patch_maps.shape
-                patch_maps.shape = (msh[0]*msh[1],msh[2],msh[3])
-                # write to file
-                n_batch = ish[0]
-                print(" ... Write %d patches %d/%d"%(n_batch,idx,np_inputs.shape[0]))
-                      #end="\r"0
-                self.append_data(patch_inputs,patch_maps)
-                del patch_inputs
-                del patch_maps
+            np_images, np_maps = self.read_pair_single(image_path,disparity_path)
+            print(" ... Read input images, len: ", len(np_images), len(np_maps))
+
+            scale_params = [1.0]
+            rotate_params = [0]
+            if self.aug_scale:
+                scale_params = self.aug_scale_factors
+            if self.aug_rotate:
+                rotate_params = [90, 180, 270]
+            for idx in range(len(np_images)):
+                for scale_param in scale_params:
+                    for rotate_param in rotate_params:
+                        print(" ", scale_param, " ", rotate_param)
+                        self.prepare_input_with_augmentation(images = np_images[idx,...],
+                                                             maps = np_maps[idx,...],
+                                                             scale=scale_param,
+                                                             rotate=rotate_param)
             # f,(ax1,ax2) = plt.subplots(1,2)
             # plt.show()
             # for _ in range(10):
