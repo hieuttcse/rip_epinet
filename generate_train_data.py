@@ -13,15 +13,15 @@ def main():
     config['disparity_dir'] = '/home/trantu/lightfield/local/hci/full/depths/additional'
     config['patch_size'] = 29 # => 29 - 22 = 7
     config['stride'] = 17
-    config['output_file'] = '/home/trantu/maps/pool1/data/epinet/train_5v_29p_17s.h5'
-    # config['output_file'] = '/home/trantu/tmp/t9.h5'
+    # config['output_file'] = '/home/trantu/maps/pool1/data/epinet/train_5v_29p_17s.h5'
+    config['output_file'] = '/home/trantu/tmp/t9.h5'
     config['view_size'] = 5
 
     config['aug_shift'] = True
     config['aug_scale'] = True
-    config['aug_scale_factors'] = (0.9,0.7,0.5)
+    config['aug_scale_factors'] = [1.0, 0.8, 0.65, 0.5]
     config['aug_rotate'] = True
-    config['thres_patch'] = 0.03*255 # threshold to select good patch
+    config['thres_patch'] = 0.035*255 # threshold to select good patch
     config['dset_input'] = 'inputs'
     config['dset_label'] = 'labels'
 

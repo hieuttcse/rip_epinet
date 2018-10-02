@@ -8,6 +8,25 @@ import scipy
 import matplotlib.image as mpimg
 import scipy.ndimage
 
+
+def disp_scaling(disp,new_shape):
+    return scipy.misc.imresize(disp,new_shape,
+                               interp="bicubic",mode="F")
+
+def img_scaling(img,new_shape):
+    # return img
+    C =0
+    if img.ndim == 3:
+        C = img.shape[2]
+
+    if  C == 0:
+        out = scipy.misc.imresize(img,new_shape,interp='bicubic')
+    else:
+        out= np.zeros((new_shape[0],new_shape[1],C),dtype=np.uint8)
+        for c in range(C):
+            out[:,:,c] = scipy.misc.imresize(img[:,:,c],new_shape,interp='bicubic')
+    return out
+
 def rgb2gray(rgb):
     return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
 
@@ -39,11 +58,13 @@ def warp_image_with_omega(img,index,omega,hy,hx):
 # images: H x W [x 3] x K
 # indexes: 2 x K
 def evaluate_disp(images, indexes, disp):
-    images = np.array(images)*255.0
+    images = np.array(images)*1.0
     indexes = np.array(indexes)
+    # print(indexes)
+    # print(indexes.shape)
     ref_index = -1
-    for i in range(indexes.shape[-1]):
-        if indexes[0,i] == 0 and indexes[1,i] == 0:
+    for i in range(indexes.shape[0]):
+        if indexes[i,0] == 0 and indexes[i,1] == 0:
             ref_index = i
             break
     if ref_index == -1:
@@ -52,9 +73,9 @@ def evaluate_disp(images, indexes, disp):
     ref_img = np.squeeze(images[...,ref_index])
     err_0 = []
     err_1 = []
-    for i in range(indexes.shape[-1]):
+    for i in range(indexes.shape[0]):
         img = np.squeeze(images[...,i])
-        idx = np.squeeze(indexes[...,i])
+        idx = np.squeeze(indexes[i,...])
         mabs_0 = np.mean(np.abs(ref_img - img))
         wimg = warp_image_with_omega(img,idx,disp,1.0,1.0)
         mabs_1 = np.mean(np.abs(ref_img - wimg))

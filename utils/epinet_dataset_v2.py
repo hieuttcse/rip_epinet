@@ -293,11 +293,14 @@ class Train_Dataset_Generator():
             return False
         return True
     def prepare_patch(self,inputs,dis_maps):
-        # calculate number of inputs
-        n_x = int(np.ceil((self.image_width-self.patch_size)/self.stride) + 1)
-        n_y = int(np.ceil((self.image_height-self.patch_size)/self.stride) + 1)
         # N x 4 x 512 x 512 x 7
         ishape = inputs.shape
+        image_height = ishape[2]
+        image_width = ishape[3]
+        # calculate number of inputs
+        n_x = int(np.ceil((image_width-self.patch_size)/self.stride) + 1)
+        n_y = int(np.ceil((image_height-self.patch_size)/self.stride) + 1)
+        # print(ishape)
         patch_inputs = []
         # vnp.zeros([n_x*n_y,ishape[0],ishape[1],
         #                          self.patch_size,self.patch_size,
@@ -320,66 +323,94 @@ class Train_Dataset_Generator():
                 #              :,:,:,:,:] = patch
                 # patch_maps[iy*n_x + ix,
                            # :,:,:] =
-                patch_maps.append(dis_maps[:,
-                                           ystart:ystart+self.patch_size,
+                patch_maps.append(dis_maps[:,ystart:ystart+self.patch_size,
                                              xstart:xstart+self.patch_size])
         print(" ... ... selected %d of %d patches"%(len(patch_maps),(n_x*n_y)))
-        return np.array(patch_inputs), np.array(patch_maps)
+        patch_inputs = np.array(patch_inputs)
+        patch_maps = np.array(patch_maps)
+        # print( patch_inputs.shape, " - ", patch_maps.shape)
+        return patch_inputs, patch_maps
+
     def append_data(self, data, label):
         ioutil.append_data(self.output_file,self.dset_input,data)
         ioutil.append_data(self.output_file,self.dset_label,label)
 
-    def prepare_input_with_augmentation(self,images,maps,scale=1.0,rotate=0):
-        print("... Shape ", images.shape)
+    def prepare_input_with_augmentation(self,images,dmap,scale=1.0,rotate=0):
+        # print("... Shape ", images.shape, " ", dmap.shape)
         # rotation:
-        seq_0 = images[Image_]
+        seq_0   = np.copy(images[Input_Type.D0.value,:,:,:])
+        seq_90  = np.copy(images[Input_Type.D90.value,:,:,:])
+        seq_45  = np.copy(images[Input_Type.D45.value,:,:,:])
+        seq_45M = np.copy(images[Input_Type.D45M.value,:,:,:])
+        seq_map = np.copy(dmap)
 
-        # for iidx in range(len(inputs)):
-        #     ainput = inputs[iidx]
-        #     adis = dis_maps[iidx]
-        #     factors = [1.0]
-        #     if self.aug_scale:
-        #         factors = self.scale_factors
-        #     for factor in factors:
-        #         arr_input = [ainput]
-        #         arr_dis = [adis]
-        #         # Scaling augmentation
-        #         if not factor == 1.0:
-        #             newInput, newDis = self.scaling_augmentation(ainput,adis,scale_factor)
-        #             arr_input.append(newInput)
-        #             arr_dis.append(newDis)
-        #         if self.aug_rotate:
-        #             newInputs, newDiss = self.rotating_augementation(ainput,adis)
-        #             for i in range(len(newDiss)):
-        #                 arr_input.append(newInputs[i])
-        #                 arr_dis.append(newDiss[i])
-        #         #TODO more augmentation strategy
-        #         # convert to numpy for convenience.
-        #         np_inputs = np.zeros([len(arr_input),len(Input_Type),
-        #                                 self.image_height,self.image_width,
-        #                                 self.view_size],
-        #                                 dtype=np.uint8)
-        #         np_dis_maps = np.array(arr_dis)
-        #         for i in range(len(arr_input)):
-        #             for itype in Input_Type:
-        #                 np_inputs[i,itype.value,...] = arr_input[i][itype]
-        #         # Cut into image patch
-        #         for idx in range(0,np_inputs.shape[0]):
-        #             # no_patch x no_shifted_view x input_type x patch_size x patch_size x view_size
-        #             patch_inputs, patch_maps = self.prepare_patch(np.expand_dims(np_inputs[idx,...],axis=0),
-        #                                                             np.expand_dims(np_dis_maps[idx,...],axis=0))
-        #             ish = patch_inputs.shape
-        #             patch_inputs.shape = (ish[0]*ish[1],ish[2],ish[3],ish[4],ish[5])
-        #             msh = patch_maps.shape
-        #             patch_maps.shape = (msh[0]*msh[1],msh[2],msh[3])
-        #             # write to file
-        #             n_batch = ish[0]
-        #             print(" ... Write %d patches %d/%d"%(n_batch,idx,np_inputs.shape[0]))
-        #                     #end="\r"0
-        #             self.append_data(patch_inputs,patch_maps)
-        #             del patch_inputs
-        #             del patch_maps
+        if rotate == 0: # rotation of 0 degree
+            rot_seq_0 = seq_0
+            rot_seq_90 = seq_90
+            rot_seq_45 = seq_45
+            rot_seq_45M = seq_45M
+            rot_seq_map = seq_map
+        elif rotate == 90: # rotation of 90 degree
+            rot_seq_0 = np.rot90(seq_90,1,(0,1))
+            rot_seq_90 = np.rot90(seq_0,1,(0,1))[:,:,::-1]
+            rot_seq_45 = np.rot90(seq_45M,1,(0,1))[:,:,::-1]
+            rot_seq_45M = np.rot90(seq_45,1,(0,1))
+            rot_seq_map = np.rot90(seq_map)
+        elif rotate == 180: # rotation of 180 degree
+            rot_seq_0 = np.rot90(seq_0,2,(0,1))[:,:,::-1]
+            rot_seq_90 = np.rot90(seq_90,2,(0,1))[:,:,::-1]
+            rot_seq_45 = np.rot90(seq_45,2,(0,1))[:,:,::-1]
+            rot_seq_45M = np.rot90(seq_45M,2,(0,1))[:,:,::-1]
+            rot_seq_map = np.rot90(seq_map,2)
+        elif rotate == 270: # rotation of 270 degree
+            rot_seq_0 = np.rot90(seq_90,3,(0,1))[:,:,::-1]
+            rot_seq_90 = np.rot90(seq_0,3,(0,1))
+            rot_seq_45 = np.rot90(seq_45M,3,(0,1))
+            rot_seq_45M = np.rot90(seq_45,3,(0,1))[:,:,::-1]
+            rot_seq_map = np.rot90(seq_map,3)
 
+        # scaling
+        height = int(scale*images.shape[1])
+        width = int(scale*images.shape[2])
+        # print(" new h, w ", height, " ", width)
+        scale_seq_map = lfutils.disp_scaling(rot_seq_map,(height,width))*scale
+        scale_seq_0 = np.zeros([height,width,self.view_size],dtype=np.uint8)
+        scale_seq_90 = np.zeros([height,width,self.view_size],dtype=np.uint8)
+        scale_seq_45 = np.zeros([height,width,self.view_size],dtype=np.uint8)
+        scale_seq_45M = np.zeros([height,width,self.view_size],dtype=np.uint8)
+        for i in range(self.view_size):
+            scale_seq_0[:,:,i] = lfutils.img_scaling(rot_seq_0[:,:,i],[height,width])
+            scale_seq_90[:,:,i] = lfutils.img_scaling(rot_seq_90[:,:,i],[height,width])
+            scale_seq_45[:,:,i] = lfutils.img_scaling(rot_seq_45[:,:,i],[height,width])
+            scale_seq_45M[:,:,i] = lfutils.img_scaling(rot_seq_45M[:,:,i],[height,width])
+
+        # lfutils.evaluate_disp(scale_seq_45,
+        #                       self.get_img_indexes(Input_Type.D45,(0,0),self.view_size),
+        #                       scale_seq_map)
+        # return
+        np_inputs = np.zeros([len(Input_Type),height,width,self.view_size],dtype=np.uint8)
+        np_inputs[Input_Type.D0.value,...] = scale_seq_0
+        np_inputs[Input_Type.D90.value,...] = scale_seq_90
+        np_inputs[Input_Type.D45.value,...] = scale_seq_45
+        np_inputs[Input_Type.D45M.value,...] = scale_seq_45M
+
+        # cut into patch
+        # no_patch x no_shifted_view x input_type x patch_size x patch_size x view_size
+        np_inputs = np.expand_dims(np_inputs,axis=0)
+        np_maps = np.expand_dims(scale_seq_map,axis=0)
+        patch_inputs, patch_maps = self.prepare_patch(np_inputs,
+                                                      np_maps)
+
+        ish = patch_inputs.shape
+        patch_inputs.shape = (ish[0]*ish[1],ish[2],ish[3],ish[4],ish[5])
+        msh = patch_maps.shape
+        patch_maps.shape = (msh[0]*msh[1],msh[2],msh[3])
+        # write to file
+        n_batch = ish[0]
+        print(" ... ... Write %d patches"%(n_batch))
+        self.append_data(patch_inputs,patch_maps)
+        del patch_inputs
+        del patch_maps
 
     def prepare_input(self):
         # check available scenes
@@ -399,14 +430,16 @@ class Train_Dataset_Generator():
             rotate_params = [0]
             if self.aug_scale:
                 scale_params = self.aug_scale_factors
+                # scale_params = [1.0]
             if self.aug_rotate:
-                rotate_params = [90, 180, 270]
+                rotate_params = [0, 90, 180,270]# [90, 180, 270]
             for idx in range(len(np_images)):
+                print(" ... %d/%d"%(idx,len(np_images)))
                 for scale_param in scale_params:
                     for rotate_param in rotate_params:
                         print(" ", scale_param, " ", rotate_param)
                         self.prepare_input_with_augmentation(images = np_images[idx,...],
-                                                             maps = np_maps[idx,...],
+                                                             dmap = np_maps[idx,...],
                                                              scale=scale_param,
                                                              rotate=rotate_param)
             # f,(ax1,ax2) = plt.subplots(1,2)
